@@ -28,7 +28,7 @@
     { title: 'Mermaid JS', href: 'https://github.com/mermaid-js/mermaid' },
     {
       title: 'Mermaid Live Editor',
-      href: 'https://github.com/mermaid-js/mermaid-live-editor'
+      href: 'https://github.com/phangs/mermaid-live-editor'
     },
     {
       title: 'Mermaid CLI',

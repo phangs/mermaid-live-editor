@@ -25,7 +25,7 @@ If you want to speed up the progress for mermaid-live-editor, join the Discord c
 ### Run published image
 
 ```bash
-docker run --platform linux/amd64 --publish 8000:8080 ghcr.io/mermaid-js/mermaid-live-editor
+docker run --platform linux/amd64 --publish 8000:8080 ghcr.io/phangs/mermaid-live-editor
 ```
 
 ### To configure renderer URL
@@ -74,13 +74,13 @@ Then open http://localhost:3000
 #### Build
 
 ```bash
-docker build -t mermaid-js/mermaid-live-editor .
+docker build -t phangs/mermaid-live-editor .
 ```
 
 #### Run
 
 ```bash
-docker run --detach --name mermaid-live-editor --publish 8080:8080 mermaid-js/mermaid-live-editor
+docker run --detach --name mermaid-live-editor --publish 8080:8080 phangs/mermaid-live-editor
 ```
 
 Visit: <http://localhost:8080>

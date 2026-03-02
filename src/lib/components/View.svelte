@@ -72,6 +72,12 @@
         rough = state.rough;
         panZoom = state.panZoom ?? true;
 
+        if (code.trim() === '') {
+          // eslint-disable-next-line svelte/no-dom-manipulating
+          container.innerHTML = '';
+          return;
+        }
+
         if (mayContainFontAwesome(code)) {
           await waitForFontAwesomeToLoad?.();
         }
@@ -128,7 +134,11 @@
         manualUpdate = false;
       }
     } catch (error_) {
-      console.error('view fail', error_);
+      if (error_ instanceof Event) {
+        console.error('view fail - Event:', error_.type, error_.target);
+      } else {
+        console.error('view fail', error_);
+      }
       error = true;
     }
     const renderTime = Date.now() - startTime;

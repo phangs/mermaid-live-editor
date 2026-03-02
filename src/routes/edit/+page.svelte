@@ -18,6 +18,7 @@
   import VersionSecurityToolbar from '$/components/VersionSecurityToolbar.svelte';
   import View from '$/components/View.svelte';
   import type { EditorMode, Tab } from '$/types';
+  import { env } from '$/util/env';
   import { PanZoomState } from '$/util/panZoom';
   import { stateStore, updateCodeStore, urlsStore } from '$/util/state';
   import { logEvent } from '$/util/stats';
@@ -25,9 +26,69 @@
   import { onMount } from 'svelte';
   import CodeIcon from '~icons/custom/code';
   import HistoryIcon from '~icons/material-symbols/history';
+  import OpenIcon from '~icons/material-symbols/file-open-outline-rounded';
+  import SaveIcon from '~icons/material-symbols/save-outline-rounded';
   import GearIcon from '~icons/material-symbols/settings-outline-rounded';
 
   const panZoomState = new PanZoomState();
+
+  const nativeSave = async () => {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      const { toast } = await import('svelte-sonner');
+
+      const path = await save({
+        defaultPath: 'diagram.mmd',
+        filters: [
+          {
+            name: 'Mermaid Diagram',
+            extensions: ['mmd', 'mermaid']
+          }
+        ]
+      });
+
+      if (!path) return;
+
+      const encoder = new TextEncoder();
+      const data = encoder.encode($stateStore.code);
+
+      await writeFile(path, data);
+      toast.success(`Diagram saved to ${path}`);
+    } catch (error) {
+      console.error('Failed to save diagram locally:', error);
+      const { toast } = await import('svelte-sonner');
+      toast.error('Failed to save diagram locally');
+    }
+  };
+
+  const nativeOpen = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { readTextFile } = await import('@tauri-apps/plugin-fs');
+      const { toast } = await import('svelte-sonner');
+
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: 'Mermaid Diagram',
+            extensions: ['mmd', 'mermaid']
+          }
+        ]
+      });
+
+      if (!selected || Array.isArray(selected)) return;
+
+      const content = await readTextFile(selected);
+      updateCodeStore({ code: content });
+      toast.success(`Diagram loaded from ${selected}`);
+    } catch (error) {
+      console.error('Failed to open diagram locally:', error);
+      const { toast } = await import('svelte-sonner');
+      toast.error('Failed to open diagram locally');
+    }
+  };
 
   const tabSelectHandler = (tab: Tab) => {
     const editorMode: EditorMode = tab.id === 'code' ? 'code' : 'config';
@@ -86,16 +147,27 @@
       <HistoryIcon />
     </Toggle>
     <Share />
-    <McWrapper>
-      <Button
-        variant="accent"
-        size="sm"
-        href={$urlsStore.mermaidChart({ medium: 'save_diagram' }).save}
-        target="_blank">
-        <MermaidChartIcon />
+    {#if env.isTauri}
+      <Button variant="outline" size="sm" onclick={nativeOpen}>
+        <OpenIcon />
+        Open diagram
+      </Button>
+      <Button variant="accent" size="sm" onclick={nativeSave}>
+        <SaveIcon />
         Save diagram
       </Button>
-    </McWrapper>
+    {:else}
+      <McWrapper>
+        <Button
+          variant="accent"
+          size="sm"
+          href={$urlsStore.mermaidChart({ medium: 'save_diagram' }).save}
+          target="_blank">
+          <MermaidChartIcon />
+          Save diagram
+        </Button>
+      </McWrapper>
+    {/if}
   </Navbar>
 
   <div class="flex flex-1 flex-col overflow-hidden" bind:clientWidth={width}>

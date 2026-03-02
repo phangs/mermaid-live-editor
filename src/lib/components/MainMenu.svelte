@@ -3,7 +3,7 @@
   import * as Popover from '$/components/ui/popover';
   import { Switch } from '$/components/ui/switch';
   import { env } from '$/util/env';
-  import { urlsStore } from '$/util/state';
+  import { defaultState, updateCodeStore, urlsStore } from '$/util/state';
   import { cn } from '$/utils';
   import { mode, setMode } from 'mode-watcher';
   import type { Component, Snippet } from 'svelte';
@@ -26,11 +26,35 @@
     sharesData?: boolean;
     checkDiagramType?: boolean;
     isSectionEnd?: boolean;
+    onclick?: (e: MouseEvent) => void;
     renderer: (item: Omit<MenuItem, 'renderer'>) => ReturnType<Snippet>;
   }
 
+  let isMenuOpen = $state(false);
+
+  const onNew = (e: MouseEvent) => {
+    if (env.isTauri || !e.ctrlKey) {
+      e.preventDefault();
+      if (
+        confirm('Are you sure you want to create a new diagram? All unsaved changes will be lost.')
+      ) {
+        updateCodeStore({
+          ...defaultState,
+          code: ''
+        });
+        isMenuOpen = false;
+      }
+    }
+  };
+
   const menuItems: MenuItem[] = $derived([
-    { label: 'New', icon: AddIcon, href: $urlsStore.new, renderer: menuItem },
+    {
+      href: $urlsStore.new,
+      icon: AddIcon,
+      label: 'New',
+      onclick: onNew,
+      renderer: menuItem
+    },
     { label: 'Duplicate', icon: DuplicateIcon, href: window.location.href, renderer: menuItem },
     {
       href: $urlsStore.mermaidChart({ medium: 'main_menu' }).playground,
@@ -87,6 +111,7 @@
 {#snippet menuItem(options: MenuItem)}
   <a
     href={options.href}
+    onclick={options.onclick}
     target="_blank"
     class={cn(
       'flex items-center justify-start gap-2 border-b-2 p-2 px-3 hover:bg-muted',
@@ -125,7 +150,7 @@
   </div>
 {/snippet}
 
-<Popover.Root>
+<Popover.Root bind:open={isMenuOpen}>
   <Popover.Trigger class="shrink-0">
     <MenuIcon class="size-6" />
   </Popover.Trigger>

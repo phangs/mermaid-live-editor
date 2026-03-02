@@ -55,14 +55,17 @@
     }
 
     if (lastMouseLine > 0 && model.id === mermaidModel.id) {
-      decorationsCollection?.set([
-        {
-          range: new monaco.Range(lastMouseLine, 1, lastMouseLine, 1),
-          options: {
-            glyphMarginClassName: 'suggestion-icon'
+      const lineCount = model.getLineCount();
+      if (lastMouseLine <= lineCount) {
+        decorationsCollection?.set([
+          {
+            range: new monaco.Range(lastMouseLine, 1, lastMouseLine, 1),
+            options: {
+              glyphMarginClassName: 'suggestion-icon'
+            }
           }
-        }
-      ]);
+        ]);
+      }
     }
   };
 

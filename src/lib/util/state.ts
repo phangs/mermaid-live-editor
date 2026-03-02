@@ -1,3 +1,4 @@
+import { replaceState } from '$app/navigation';
 import type { ErrorHash, MarkerData, State, ValidatedState } from '$/types';
 import { debounce } from 'lodash-es';
 import type { MermaidConfig } from 'mermaid';
@@ -68,13 +69,15 @@ const processState = async (state: State) => {
   // No changes should be done to fields part of `state`.
   try {
     processed.serialized = serializeState(state);
-    const { diagramType } = await parse(state.code);
-    processed.diagramType = diagramType;
-    if (lastDiagramType === 'zenuml' && diagramType !== lastDiagramType) {
-      // Temp Hack to refresh page after displaying ZenUML.
-      setTimeout(() => window.location.reload(), 500);
+    if (state.code.trim() !== '') {
+      const { diagramType } = await parse(state.code);
+      processed.diagramType = diagramType;
+      if (lastDiagramType === 'zenuml' && diagramType !== lastDiagramType) {
+        // Temp Hack to refresh page after displaying ZenUML.
+        setTimeout(() => window.location.reload(), 500);
+      }
+      lastDiagramType = diagramType;
     }
-    lastDiagramType = diagramType;
     JSON.parse(state.mermaid);
   } catch (error) {
     processed.error = error as Error;
@@ -235,7 +238,15 @@ export const toggleDarkTheme = (dark: boolean): void => {
 
 export const initURLSubscription = (): void => {
   const updateHash = debounce((hash) => {
-    history.replaceState(undefined, '', `#${hash}`);
+    try {
+      if (window.location.hash.slice(1) !== hash) {
+        const url = new URL(window.location.href);
+        url.hash = hash;
+        replaceState(url, {});
+      }
+    } catch (error) {
+      console.error('Failed to update URL hash:', error);
+    }
   }, 250);
 
   stateStore.subscribe(({ serialized }) => {

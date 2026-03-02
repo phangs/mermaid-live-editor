@@ -129,14 +129,22 @@ export class PanZoomState {
       console.error('PanZoomState.restorePanZoom: pzoom is not initialized');
       return;
     }
-    this.pzoom.zoom(zoom);
-    this.pzoom.pan(pan);
+    try {
+      this.pzoom.zoom(zoom);
+      this.pzoom.pan(pan);
+    } catch (error) {
+      console.error('PanZoomState.restorePanZoom error:', error);
+    }
   }
 
   public resize() {
-    this.pzoom?.resize();
-    if (!this.isDirty) {
-      this.reset();
+    try {
+      this.pzoom?.resize();
+      if (!this.isDirty) {
+        this.reset();
+      }
+    } catch (error) {
+      console.error('PanZoomState.resize error:', error);
     }
   }
 
@@ -149,9 +157,13 @@ export class PanZoomState {
   }
 
   public reset() {
-    this.pzoom?.reset();
-    // Zoom out a bit to avoid overlap with the toolbar
-    this.pzoom?.zoom(0.875);
-    this.isDirty = false;
+    try {
+      this.pzoom?.reset();
+      // Zoom out a bit to avoid overlap with the toolbar
+      this.pzoom?.zoom(0.875);
+      this.isDirty = false;
+    } catch (error) {
+      console.error('PanZoomState.reset error:', error);
+    }
   }
 }

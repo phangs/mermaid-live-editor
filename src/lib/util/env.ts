@@ -3,6 +3,7 @@ export const env = {
   docsUrl: import.meta.env.MERMAID_DOCS_URL ?? 'https://mermaid.js.org',
   domain: import.meta.env.MERMAID_DOMAIN ?? '',
   isEnabledMermaidChartLinks: import.meta.env.MERMAID_IS_ENABLED_MERMAID_CHART_LINKS === 'true',
+  isTauri: typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window,
   krokiRendererUrl: import.meta.env.MERMAID_KROKI_RENDERER_URL ?? '',
   rendererUrl: import.meta.env.MERMAID_RENDERER_URL ?? ''
 } as const;

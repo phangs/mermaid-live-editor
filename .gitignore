@@ -15,3 +15,8 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Tauri
+/src-tauri/target/
+/src-tauri/gen/
+

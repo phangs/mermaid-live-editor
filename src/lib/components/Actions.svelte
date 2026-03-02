@@ -11,6 +11,7 @@
   import { getDomain } from '$/util/util';
   import { browser } from '$app/environment';
   import { waitForRender } from '$lib/util/autoSync';
+  import { env } from '$/util/env';
   import { inputStateStore, stateStore, urlsStore } from '$lib/util/state';
   import { logEvent } from '$lib/util/stats';
   import { version as FAVersion } from '@fortawesome/fontawesome-free/package.json';
@@ -19,6 +20,58 @@
   import DownloadIcon from '~icons/material-symbols/download';
   import ExternalLinkIcon from '~icons/material-symbols/open-in-new-rounded';
   import WidthIcon from '~icons/material-symbols/width-rounded';
+
+  const tauriDownload = async (filename: string, dataUrl: string) => {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      const { toast } = await import('svelte-sonner');
+
+      const path = await save({
+        defaultPath: filename,
+        filters: [
+          {
+            name: filename.endsWith('.png') ? 'PNG Image' : 'SVG Image',
+            extensions: [filename.split('.').pop() || '']
+          }
+        ]
+      });
+
+      if (!path) return;
+
+      let data: Uint8Array;
+      if (dataUrl.startsWith('data:')) {
+        const response = await fetch(dataUrl);
+        data = new Uint8Array(await response.arrayBuffer());
+      } else {
+        // Assume it's a raw base64 string (from getBase64SVG)
+        const binaryString = window.atob(dataUrl);
+        data = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          data[i] = binaryString.charCodeAt(i);
+        }
+      }
+
+      await writeFile(path, data);
+      toast.success(`File saved to ${path}`);
+    } catch (error) {
+      console.error('Failed to save file in Tauri:', error);
+      try {
+        const { toast } = await import('svelte-sonner');
+        let errorMessage = '';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (error instanceof Event) {
+          errorMessage = `Event error: ${error.type} on ${error.target?.constructor.name}`;
+        } else {
+          errorMessage = String(error);
+        }
+        toast.error(`Failed to save file: ${errorMessage}`);
+      } catch {
+        // fallback if toast fails
+      }
+    }
+  };
 
   const FONT_AWESOME_URL = `https://cdnjs.cloudflare.com/ajax/libs/font-awesome/${FAVersion}/css/all.min.css`;
 
@@ -59,6 +112,7 @@
 
   const getSvgElement = () => {
     const svgElement = document.querySelector('#container svg')?.cloneNode(true) as HTMLElement;
+    if (!svgElement) return undefined;
     svgElement.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     return svgElement;
   };
@@ -67,18 +121,32 @@
     if (svg) {
       // Prevents the SVG size of the interface from being changed
       svg = svg.cloneNode(true) as HTMLElement;
+    } else {
+      svg = getSvgElement() ?? document.createElement('div');
     }
+
+    if (!svg) return '';
+
+    // Remove any constraint styles
+    svg.style.maxWidth = 'none';
+    svg.style.width = '';
+    svg.style.height = '';
+
+    const svgEl = svg as unknown as SVGSVGElement;
+    const viewBox = svgEl.viewBox?.baseVal;
+
     if (height) {
-      svg?.setAttribute('height', `${height}px`);
+      svg.setAttribute('height', `${height}px`);
+    } else if (viewBox && viewBox.height > 0) {
+      svg.setAttribute('height', `${viewBox.height}px`);
     }
+
     if (width) {
-      svg?.setAttribute('width', `${width}px`);
+      svg.setAttribute('width', `${width}px`);
+    } else if (viewBox && viewBox.width > 0) {
+      svg.setAttribute('width', `${viewBox.width}px`);
     }
     // Workaround https://stackoverflow.com/questions/28690643/firefox-error-rendering-an-svg-image-to-html5-canvas-with-drawimage
-
-    if (!svg) {
-      svg = getSvgElement();
-    }
 
     if ($stateStore.rough) {
       fixForeignObjectClipping(svg);
@@ -98,6 +166,10 @@ ${svgString}`);
   };
 
   const simulateDownload = (download: string, href: string): void => {
+    if (env.isTauri) {
+      void tauriDownload(download, href);
+      return;
+    }
     const a = document.createElement('a');
     a.download = download;
     a.href = href;
@@ -106,23 +178,23 @@ ${svgString}`);
   };
 
   const exportImage = async (event: Event, exporter: Exporter) => {
+    const originalPanZoom = $inputStateStore.panZoom;
     $inputStateStore.panZoom = false;
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await waitForRender();
     const canvas = document.createElement('canvas');
-    const svg = document.querySelector<HTMLElement>('#container svg');
+    const svg = getSvgElement();
     if (!svg) {
       throw new Error('svg not found');
     }
-
-    const box = svg.getBoundingClientRect();
 
     // In rough mode, SVG has width/height="100%" so getBoundingClientRect returns
     // the container size, not the actual diagram size. Use viewBox dimensions instead.
     const svgEl = svg as unknown as SVGSVGElement;
     const viewBox = svgEl.viewBox?.baseVal;
-    const contentWidth = viewBox && viewBox.width > 0 ? viewBox.width : box.width;
-    const contentHeight = viewBox && viewBox.height > 0 ? viewBox.height : box.height;
+
+    const contentWidth = viewBox && viewBox.width > 0 ? viewBox.width : 800;
+    const contentHeight = viewBox && viewBox.height > 0 ? viewBox.height : 600;
 
     if (imageSizeMode === 'width') {
       const ratio = contentHeight / contentWidth;
@@ -149,14 +221,14 @@ ${svgString}`);
     const image = new Image();
     image.addEventListener('load', () => {
       exporter(context, image)();
-      $inputStateStore.panZoom = true;
+      $inputStateStore.panZoom = originalPanZoom;
     });
     image.src = `data:image/svg+xml;base64,${getBase64SVG(svg, canvas.width, canvas.height)}`;
     // Fallback to set panZoom to true after 2 seconds
     // This is a workaround for the case when the image is not loaded
     setTimeout(() => {
-      if (!$inputStateStore.panZoom) {
-        $inputStateStore.panZoom = true;
+      if ($inputStateStore.panZoom !== originalPanZoom) {
+        $inputStateStore.panZoom = originalPanZoom;
       }
     }, 2000);
     event.stopPropagation();
@@ -211,8 +283,13 @@ ${svgString}`);
     });
   };
 
-  const onDownloadSVG = () => {
+  const onDownloadSVG = async () => {
+    const originalPanZoom = $inputStateStore.panZoom;
+    $inputStateStore.panZoom = false;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await waitForRender();
     simulateDownload(getFileName('svg'), `data:image/svg+xml;base64,${getBase64SVG()}`);
+    $inputStateStore.panZoom = originalPanZoom;
     logEvent('download', {
       type: 'svg'
     });
